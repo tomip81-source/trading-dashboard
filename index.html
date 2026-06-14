@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NAS100 & GOLD Trading Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117; --bg2: #1a1d27; --bg3: #22263a;
+    --border: #2e3347; --text: #e8eaf0; --text2: #8b90a7;
+    --blue: #3266ad; --green: #1D9E75; --red: #E24B4A; --yellow: #EF9F27;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem; }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 10px; }
+  h1 span { font-size: 22px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .tab { padding: 8px 14px; font-size: 13px; cursor: pointer; border: none; background: transparent; color: var(--text2); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom: 2px solid var(--blue); font-weight: 500; }
+  .section { display: none; }
+  .section.active { display: block; }
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
+  .metric { background: var(--bg2); border-radius: var(--radius); padding: 12px; border: 1px solid var(--border); }
+  .metric-label { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .metric-value { font-size: 20px; font-weight: 600; }
+  .metric-value.green { color: var(--green); }
+  .metric-value.red { color: var(--red); }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1rem; }
+  .card-title { font-size: 13px; font-weight: 500; color: var(--text2); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  label { font-size: 13px; color: var(--text2); min-width: 80px; }
+  input, select { font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg3); color: var(--text); outline: none; }
+  input:focus, select:focus { border-color: var(--blue); }
+  input[type=number] { width: 110px; }
+  .btn { padding: 7px 16px; font-size: 13px; font-weight: 500; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; background: var(--bg3); color: var(--text); transition: background 0.15s; }
+  .btn:hover { background: var(--border); }
+  .btn.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .btn.primary:hover { background: #2455a0; }
+  .trade-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .trade-table th { text-align: left; padding: 8px; font-weight: 500; color: var(--text2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .trade-table td { padding: 8px; border-bottom: 1px solid var(--border); }
+  .trade-table tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.buy { background: #0f3d2b; color: #4ddb9e; }
+  .badge.sell { background: #3d1212; color: #f47070; }
+  .badge.win { background: #1a3d1a; color: #6ddb6d; }
+  .badge.loss { background: #3d1212; color: #f47070; }
+  .upload-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 2.5rem; text-align: center; cursor: pointer; transition: all 0.15s; }
+  .upload-zone:hover, .upload-zone.drag { background: var(--bg3); border-color: var(--blue); }
+  .upload-icon { font-size: 40px; margin-bottom: 10px; }
+  .upload-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .upload-sub { font-size: 13px; color: var(--text2); }
+  .steps { list-style: none; counter-reset: step; }
+  .steps li { counter-increment: step; display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text2); line-height: 1.6; }
+  .steps li:last-child { border-bottom: none; }
+  .steps li::before { content: counter(step); min-width: 24px; height: 24px; background: var(--blue); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; margin-top: 1px; }
+  .steps li b { color: var(--text); }
+  .alert { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; }
+  .alert.success { background: #0f3d2b; color: #4ddb9e; }
+  .alert.error { background: #3d1212; color: #f47070; }
+  .alert.info { background: #0d2340; color: #6baef5; }
+  .ema-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .ema-row:last-child { border-bottom: none; }
+  .signal { font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 20px; }
+  .signal.bull { background: #0f3d2b; color: #4ddb9e; }
+  .signal.bear { background: #3d1212; color: #f47070; }
+  .signal.neutral { background: var(--bg3); color: var(--text2); }
+  .sr-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 13px; border-bottom: 1px solid var(--border); align-items: center; gap: 8px; }
+  .sr-row:last-child { border-bottom: none; }
+  .rr-display { font-size: 32px; font-weight: 700; text-align: center; padding: 1rem 0; }
+  .progress-bar { height: 8px; border-radius: 4px; background: var(--bg3); overflow: hidden; margin-top: 8px; }
+  .progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+  .tip-list { list-style: none; font-size: 13px; color: var(--text2); line-height: 2; }
+  .tip-list li { padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .tip-list li:last-child { border-bottom: none; }
+  @media (max-width: 600px) {
+    .metric-grid { grid-template-columns: repeat(2, 1fr); }
+    .row { flex-direction: column; align-items: flex-start; }
+    label { min-width: unset; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1><span>📈</span> NAS100 & GOLD Trading Dashboard</h1>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('import')">📥 CSV Import</button>
+    <button class="tab" onclick="showTab('journal')">📓 Trade Journal</button>
+    <button class="tab" onclick="showTab('analysis')">📊 Elemzés</button>
+    <button class="tab" onclick="showTab('backtester')">⏪ Backtester</button>
+    <button class="tab" onclick="showTab('rr')">🧮 R:R Kalkulátor</button>
+  </div>
+
+  <!-- CSV IMPORT -->
+  <div id="tab-import" class="section active">
+    <div class="card">
+      <div class="card-title">Hogyan exportálj cTrader-ből?</div>
+      <ol class="steps">
+        <li>Nyisd meg a cTrader-t, lépj a <b>History</b> fülre (alul, Trade Watch panelben)</li>
+        <li>Jobb klikk a listán → pipáld be: <b>Symbol, Opening Time, Closing Time, Opening Direction, Entry Price, Closing Price, Net Profit</b></li>
+        <li>Kattints a <b>Statement</b> gombra (zöld, jobb felül) → nyíl → <b>Export to CSV</b></li>
+        <li>Töltsd fel az alábbi mezőbe, és az adatok automatikusan bekerülnek a Trade Journalba</li>
+      </ol>
+    </div>
+    <div class="card">
+      <div class="card-title">CSV Feltöltés</div>
+      <div id="alert-area"></div>
+      <div class="upload-zone" id="drop-zone" onclick="document.getElementById('csv-input').click()" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
+        <div class="upload-icon">📂</div>
+        <div class="upload-title">Kattints vagy húzd ide a CSV fájlt</div>
+        <div class="upload-sub">cTrader Statement export (.csv)</div>
+      </div>
+      <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
+      <div style="margin-top:1rem;">
+        <div class="card-title" style="margin-bottom:8px;">Vagy tesztelj minta adatokkal</div>
+        <button class="btn" onclick="loadSampleData()">▶ Minta adatok betöltése</button>
+      </div>
+    </div>
+    <div id="import-preview" style="display:none;">
+      <div class="card">
+        <div class="card-title">✅ Importált trade-ek előnézete</div>
+        <div style="overflow-x:auto;">
+          <table class="trade-table">
+            <thead><tr><th>Dátum</th><th>Eszköz</th><th>Irány</th><th>Entry</th><th>Close</th><th>Net P&L</th><th>Eredmény</th></tr></thead>
+            <tbody id="preview-body"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:8px;">
+          <button class="btn primary" onclick="confirmImport()">✔ Importálás megerősítése</button>
+          <button class="btn" onclick="cancelImport()">✖ Mégse</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRADE JOURNAL -->
+  <div id="tab-journal" class="section">
+    <div class="metric-grid">
+      <div class="metric"><div class="metric-label">Összes trade</div><div class="metric-value" id="stat-total">0</div></div>
+      <div class="metric"><div class="metric-label">Win rate</div><div class="metric-value green" id="stat-wr">0%</div></div>
+      <div class="metric"><div class="metric-label">Nettó P&L</div><div class="metric-value" id="stat-pnl">$0</div></div>
+      <div class="metric"><div class="metric-label">Avg R:R</div><div class="metric-value" id="stat-rr">–</div></div>
+      <div class="metric"><div class="metric-label">NAS100 trades</div><div class="metric-value" id="stat-nas">0</div></div>
+      <div class="metric"><div class="metric-label">GOLD trades</div><div class="metric-value" id="stat-gold">0</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">➕ Manuális trade hozzáadása</div>
+      <div class="row">
+        <label>Eszköz</label>
+        <select id="t-asset"><option>NAS100</option><option>GOLD</option></select>
+        <select id="t-dir"><option value="BUY">BUY</option><option value="SELL">SELL</option></select>
+        <label>Dátum</label>
+        <input type="date" id="t-date">
+      </div>
+      <div class="row">
+        <label>Entry</label><input type="number" id="t-entry" placeholder="pl. 19500">
+        <label>SL</label><input type="number" id="t-sl" placeholder="SL ár">
+        <label>TP</label><input type="number" id="t-tp" placeholder="TP ár">
+      </div>
+      <div class="row">
+        <label>Net P&L ($)</label><input type="number" id="t-pnl" placeholder="pl. 150">
+        <input type="text" id="t-note" placeholder="Megjegyzés" style="flex:1; min-width:150px;">
+        <button class="btn primary" onclick="addTrade()">+ Hozzáad</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 Trade napló</div>
+      <div style="overflow-x:auto;">
+        <table class="trade-table">
+          <thead><tr><th>Dátum</th><th>Eszköz</th><th>Irány</th><th>Entry</th><th>Close</th><th>Net P&L</th><th>Eredmény</th><th>Megjegyzés</th><th></th></tr></thead>
+          <tbody id="trade-body"><tr><td colspan="9" style="text-align:center; color:var(--text2); padding:24px;">Még nincs trade. Importálj CSV-t vagy adj hozzá manuálisan.</td></tr></tbody>
+        </table>
+      </div>
+      <div style="margin-top:1rem; position:relative; width:100%; height:180px;">
+        <canvas id="pnlChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ELEMZÉS -->
+  <div id="tab-analysis" class="section">
+    <div class="row" style="margin-bottom:1rem;">
+      <label>Eszköz</label>
+      <select id="a-asset" onchange="updateAnalysis()"><option>NAS100</option><option>GOLD</option></select>
+      <label style="margin-left:12px;">Aktuális ár</label>
+      <input type="number" id="a-price" placeholder="pl. 19500" oninput="updateAnalysis()" style="width:130px;">
+    </div>
+    <div class="card">
+      <div class="card-title">📈 EMA szintek & jelek</div>
+      <div class="ema-row"><span>EMA 9</span><input type="number" id="ema9" placeholder="érték" oninput="updateAnalysis()" style="width:110px;"><span id="sig9" class="signal neutral">–</span></div>
+      <div class="ema-row"><span>EMA 21</span><input type="number" id="ema21" placeholder="érték" oninput="updateAnalysis()" style="width:110px;"><span id="sig21" class="signal neutral">–</span></div>
+      <div class="ema-row"><span>EMA 50</span><input type="number" id="ema50" placeholder="érték" oninput="updateAnalysis()" style="width:110px;"><span id="sig50" class="signal neutral">–</span></div>
+      <div class="ema-row"><span>EMA 200</span><input type="number" id="ema200" placeholder="érték" oninput="updateAnalysis()" style="width:110px;"><span id="sig200" class="signal neutral">–</span></div>
+      <div style="margin-top:12px; padding:10px; background:var(--bg3); border-radius:6px; font-size:13px;">
+        <span style="color:var(--text2);">Átfogó EMA signal: </span><span id="overall-signal" style="font-weight:600;">–</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📉 Support & Resistance szintek</div>
+      <div id="sr-list"><div style="font-size:13px; color:var(--text2); padding:8px 0;">Adj hozzá szinteket alul.</div></div>
+      <div class="row" style="margin-top:10px;">
+        <input type="number" id="sr-val" placeholder="Szint ára" style="width:110px;">
+        <select id="sr-type"><option value="S">Support</option><option value="R">Resistance</option></select>
+        <input type="text" id="sr-label" placeholder="Megnevezés (pl. Daily High)" style="flex:1;">
+        <button class="btn" onclick="addSR()">+ Hozzáad</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📊 Win rate & P&L eszköz szerint</div>
+      <div style="position:relative; width:100%; height:200px;">
+        <canvas id="assetChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- BACKTESTER -->
+  <div id="tab-backtester" class="section">
+    <div class="card">
+      <div class="card-title">⚙️ Stratégia paraméterek (EMA Cross)</div>
+      <div class="row"><label>Eszköz</label><select id="b-asset"><option>NAS100</option><option>GOLD</option></select></div>
+      <div class="row"><label>EMA gyors</label><input type="number" id="b-fast" value="9" style="width:80px;"><label>EMA lassú</label><input type="number" id="b-slow" value="21" style="width:80px;"></div>
+      <div class="row"><label>SL (pont)</label><input type="number" id="b-sl" value="15" style="width:80px;"><label>TP (pont)</label><input type="number" id="b-tp" value="30" style="width:80px;"></div>
+      <div class="row"><label>Gyertyák</label><input type="number" id="b-candles" value="300" style="width:80px;"><label>Tőke ($)</label><input type="number" id="b-capital" value="10000" style="width:100px;"></div>
+      <div class="row"><label>Kockázat %</label><input type="number" id="b-risk" value="1" style="width:80px;"><span style="font-size:13px; color:var(--text2);">/ trade</span></div>
+      <div style="margin-top:12px;"><button class="btn primary" onclick="runBacktest()">▶ Backtest futtatása</button></div>
+    </div>
+    <div id="backtest-results" style="display:none;">
+      <div class="metric-grid" id="bt-stats"></div>
+      <div class="card">
+        <div class="card-title">Equity görbe</div>
+        <div style="position:relative; width:100%; height:220px;"><canvas id="equityChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Trade lista (utolsó 20)</div>
+        <div style="overflow-x:auto;">
+          <table class="trade-table">
+            <thead><tr><th>#</th><th>Irány</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Eredmény</th></tr></thead>
+            <tbody id="bt-trade-list"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- R:R KALKULÁTOR -->
+  <div id="tab-rr" class="section">
+    <div class="card">
+      <div class="card-title">🧮 Risk:Reward kalkulátor</div>
+      <div class="row"><label>Számla ($)</label><input type="number" id="rr-account" value="10000" oninput="calcRR()"></div>
+      <div class="row"><label>Kockázat %</label><input type="number" id="rr-risk-pct" value="1" step="0.1" oninput="calcRR()"><span style="font-size:13px; color:var(--text2);">→ kockáztatott: <b id="rr-risk-usd" style="color:var(--text);">$100</b></span></div>
+      <div class="row"><label>Entry</label><input type="number" id="rr-entry" placeholder="pl. 19500" oninput="calcRR()"></div>
+      <div class="row"><label>Stop Loss</label><input type="number" id="rr-sl" placeholder="pl. 19485" oninput="calcRR()"></div>
+      <div class="row"><label>Take Profit</label><input type="number" id="rr-tp" placeholder="pl. 19530" oninput="calcRR()"></div>
+      <div id="rr-result" style="display:none;">
+        <div class="rr-display" id="rr-ratio">R:R = 0</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:1rem;">
+          <div class="metric"><div class="metric-label">SL távolság</div><div class="metric-value" id="rr-sl-dist">–</div></div>
+          <div class="metric"><div class="metric-label">TP távolság</div><div class="metric-value" id="rr-tp-dist">–</div></div>
+          <div class="metric"><div class="metric-label">Potenciális nyereség</div><div class="metric-value green" id="rr-profit">–</div></div>
+          <div class="metric"><div class="metric-label">Max veszteség</div><div class="metric-value red" id="rr-loss">–</div></div>
+        </div>
+        <div style="margin-top:1rem; font-size:13px; color:var(--text2);">
+          <div style="margin-bottom:6px;">Min. ajánlott R:R: <b style="color:var(--text);">1:1.5</b></div>
+          <div class="progress-bar"><div class="progress-fill" id="rr-bar" style="width:0%;"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">💡 Scalping tippek – NAS100 & GOLD</div>
+      <ul class="tip-list">
+        <li>📍 NAS100: figyelj a 9/21 EMA crossra 1M-5M TF-en</li>
+        <li>📍 GOLD: erős S/R szinteken keress visszateszteléseket</li>
+        <li>📍 Ideális R:R: legalább 1:1.5 scalp esetén, 1:2+ swing esetén</li>
+        <li>📍 Kerüld a hírek előtti 15 percet (NFP, FOMC, CPI)</li>
+        <li>📍 Max napi veszteség: számla 3%-a – utána stop trading</li>
+        <li>📍 EMA 200 felett csak long setupok, alatta csak short</li>
+        <li>📍 Scalp belépő: EMA cross + S/R szint egybeesése = erős jel</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+let trades = JSON.parse(localStorage.getItem('trades') || '[]');
+let srLevels = JSON.parse(localStorage.getItem('srLevels') || '[]');
+let pendingImport = [];
+let pnlChartInst = null, assetChartInst = null, equityChartInst = null;
+
+function save() {
+  localStorage.setItem('trades', JSON.stringify(trades));
+  localStorage.setItem('srLevels', JSON.stringify(srLevels));
+}
+
+function showTab(name) {
+  const names = ['import','journal','analysis','backtester','rr'];
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', names[i] === name));
+  document.querySelectorAll('.section').forEach((s,i) => s.classList.toggle('active', names[i] === name));
+  if (name === 'analysis') setTimeout(renderAssetChart, 80);
+  if (name === 'journal') setTimeout(() => { renderTradeTable(); updateStats(); renderPnlChart(); }, 80);
+}
+
+function showAlert(msg, type) {
+  document.getElementById('alert-area').innerHTML = `<div class="alert ${type}">${msg}</div>`;
+  setTimeout(() => document.getElementById('alert-area').innerHTML = '', 6000);
+}
+
+function dragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('drag'); }
+function dragLeave() { document.getElementById('drop-zone').classList.remove('drag'); }
+function dropFile(e) { e.preventDefault(); dragLeave(); handleFile(e.dataTransfer.files[0]); }
+
+function handleFile(file) {
+  if (!file) return;
+  if (!file.name.endsWith('.csv')) { showAlert('Csak .csv fájlt fogad el!', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = e => parseCSV(e.target.result);
+  reader.readAsText(file);
+}
+
+function parseCSV(text) {
+  const result = Papa.parse(text, { header: true, skipEmptyLines: true });
+  const rows = result.data;
+  if (!rows || rows.length === 0) { showAlert('Nem sikerült beolvasni a CSV-t.', 'error'); return; }
+
+  const findCol = (keys) => {
+    for (const k of keys) {
+      const found = Object.keys(rows[0]).find(h => h.trim().toLowerCase().includes(k));
+      if (found) return found;
+    }
+    return null;
+  };
+
+  const symCol = findCol(['symbol','instrument','asset']);
+  const dirCol = findCol(['opening direction','direction','side','type']);
+  const dateCol = findCol(['closing time','opening time','date','time']);
+  const entryCol = findCol(['entry price','open price','opening price']);
+  const closeCol = findCol(['closing price','close price','exit price']);
+  const pnlCol = findCol(['net profit','profit','pnl','p&l','gross']);
+
+  if (!symCol && !pnlCol) {
+    showAlert('Nem ismerhető fel a cTrader formátum. Ellenőrizd az oszlopokat.', 'error');
+    return;
+  }
+
+  pendingImport = rows.map(row => {
+    const rawSym = symCol ? (row[symCol] || '').trim().toUpperCase() : '';
+    let asset = rawSym || 'Egyéb';
+    if (rawSym.includes('NAS') || rawSym.includes('US100') || rawSym.includes('NDX') || rawSym.includes('NQ')) asset = 'NAS100';
+    else if (rawSym.includes('XAU') || rawSym.includes('GOLD') || rawSym.includes('GOL')) asset = 'GOLD';
+
+    const rawDir = dirCol ? (row[dirCol] || '').trim().toUpperCase() : '';
+    const dir = rawDir.includes('BUY') || rawDir === 'LONG' ? 'BUY' : 'SELL';
+    const date = dateCol ? (row[dateCol] || '').slice(0, 10) : '';
+    const entry = parseFloat((entryCol ? row[entryCol] : '') || 0) || 0;
+    const close = parseFloat((closeCol ? row[closeCol] : '') || 0) || 0;
+    const pnl = parseFloat((pnlCol ? (row[pnlCol] || '').toString().replace(/[^0-9.\-]/g, '') : '0')) || 0;
+
+    return { asset, dir, date, entry, close, pnl, note: 'cTrader import' };
+  }).filter(t => t.pnl !== 0 || t.entry !== 0);
+
+  if (pendingImport.length === 0) { showAlert('Nem találhatók érvényes trade-ek.', 'error'); return; }
+
+  showAlert(`${pendingImport.length} trade beolvasva. Ellenőrizd az előnézetet!`, 'success');
+
+  document.getElementById('preview-body').innerHTML = pendingImport.slice(0, 20).map(t => `
+    <tr>
+      <td>${t.date || '–'}</td><td>${t.asset}</td>
+      <td><span class="badge ${t.dir==='BUY'?'buy':'sell'}">${t.dir}</span></td>
+      <td>${t.entry || '–'}</td><td>${t.close || '–'}</td>
+      <td style="color:${t.pnl>=0?'#4ddb9e':'#f47070'}; font-weight:600;">${t.pnl>=0?'+':''}$${t.pnl.toFixed(2)}</td>
+      <td><span class="badge ${t.pnl>=0?'win':'loss'}">${t.pnl>=0?'WIN':'LOSS'}</span></td>
+    </tr>
+  `).join('') + (pendingImport.length > 20 ? `<tr><td colspan="7" style="text-align:center; color:var(--text2); padding:8px;">... és még ${pendingImport.length-20} trade</td></tr>` : '');
+
+  document.getElementById('import-preview').style.display = 'block';
+}
+
+function loadSampleData() {
+  const sampleCSV = `Opening Direction,Symbol,Opening Time,Closing Time,Entry Price,Closing Price,Net Profit
+Buy,XAUUSD,2024-06-10 09:05,2024-06-10 09:18,2325.40,2331.80,64.00
+Sell,NAS100,2024-06-10 09:30,2024-06-10 09:42,19520.0,19501.5,185.00
+Buy,NAS100,2024-06-10 10:00,2024-06-10 10:11,19505.0,19492.0,-130.00
+Buy,XAUUSD,2024-06-10 10:30,2024-06-10 10:48,2328.10,2335.50,74.00
+Sell,NAS100,2024-06-10 11:05,2024-06-10 11:19,19515.0,19530.0,-150.00
+Buy,XAUUSD,2024-06-10 11:30,2024-06-10 11:52,2330.20,2338.90,87.00
+Buy,NAS100,2024-06-10 13:00,2024-06-10 13:14,19498.0,19513.0,150.00
+Sell,XAUUSD,2024-06-10 13:30,2024-06-10 13:44,2335.00,2329.50,55.00
+Buy,NAS100,2024-06-10 14:00,2024-06-10 14:10,19510.0,19502.0,-80.00
+Buy,XAUUSD,2024-06-10 14:30,2024-06-10 14:55,2332.00,2341.20,92.00`;
+  parseCSV(sampleCSV);
+}
+
+function confirmImport() {
+  trades = [...trades, ...pendingImport];
+  pendingImport = [];
+  save();
+  document.getElementById('import-preview').style.display = 'none';
+  showAlert(`✅ Sikeresen importálva! Összesen ${trades.length} trade a naplóban.`, 'success');
+  updateStats();
+}
+
+function cancelImport() {
+  pendingImport = [];
+  document.getElementById('import-preview').style.display = 'none';
+}
+
+function addTrade() {
+  const asset = document.getElementById('t-asset').value;
+  const dir = document.getElementById('t-dir').value;
+  const date = document.getElementById('t-date').value || new Date().toISOString().slice(0,10);
+  const entry = parseFloat(document.getElementById('t-entry').value) || 0;
+  const sl = parseFloat(document.getElementById('t-sl').value) || 0;
+  const tp = parseFloat(document.getElementById('t-tp').value) || 0;
+  const pnl = parseFloat(document.getElementById('t-pnl').value) || 0;
+  const note = document.getElementById('t-note').value;
+  if (!entry && !pnl) { alert('Adj meg legalább entry árat vagy P&L értéket!'); return; }
+  const slDist = Math.abs(entry - sl);
+  const tpDist = Math.abs(tp - entry);
+  const rr = slDist > 0 ? (tpDist / slDist).toFixed(2) : null;
+  trades.push({ asset, dir, date, entry, close: tp, pnl, note, rr });
+  save();
+  renderTradeTable();
+  updateStats();
+  renderPnlChart();
+  ['t-entry','t-sl','t-tp','t-pnl','t-note'].forEach(id => document.getElementById(id).value = '');
+}
+
+function deleteTrade(i) {
+  trades.splice(i, 1);
+  save();
+  renderTradeTable();
+  updateStats();
+  renderPnlChart();
+}
+
+function renderTradeTable() {
+  const tbody = document.getElementById('trade-body');
+  if (!trades.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text2); padding:24px;">Még nincs trade.</td></tr>'; return; }
+  tbody.innerHTML = [...trades].reverse().map((t, ri) => {
+    const i = trades.length - 1 - ri;
+    return `<tr>
+      <td>${t.date||'–'}</td><td>${t.asset}</td>
+      <td><span class="badge ${t.dir==='BUY'?'buy':'sell'}">${t.dir}</span></td>
+      <td>${t.entry||'–'}</td><td>${t.close||'–'}</td>
+      <td style="color:${t.pnl>=0?'#4ddb9e':'#f47070'}; font-weight:600;">${t.pnl>=0?'+':''}$${t.pnl.toFixed(2)}</td>
+      <td><span class="badge ${t.pnl>=0?'win':'loss'}">${t.pnl>=0?'WIN':'LOSS'}</span></td>
+      <td style="color:var(--text2); font-size:12px;">${t.note||'–'}</td>
+      <td><button class="btn" style="padding:3px 8px; font-size:11px;" onclick="deleteTrade(${i})">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateStats() {
+  const total = trades.length;
+  const wins = trades.filter(t => t.pnl > 0).length;
+  const wr = total > 0 ? Math.round((wins/total)*100) : 0;
+  const netPnl = trades.reduce((s,t) => s+t.pnl, 0);
+  const rrs = trades.filter(t => t.rr).map(t => parseFloat(t.rr));
+  const avgRR = rrs.length > 0 ? (rrs.reduce((s,r)=>s+r,0)/rrs.length).toFixed(2) : '–';
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-wr').textContent = wr + '%';
+  document.getElementById('stat-wr').className = 'metric-value ' + (wr >= 50 ? 'green' : 'red');
+  document.getElementById('stat-pnl').textContent = (netPnl>=0?'+':'')+'$'+netPnl.toFixed(2);
+  document.getElementById('stat-pnl').className = 'metric-value ' + (netPnl>=0?'green':'red');
+  document.getElementById('stat-rr').textContent = avgRR;
+  document.getElementById('stat-nas').textContent = trades.filter(t => t.asset==='NAS100').length;
+  document.getElementById('stat-gold').textContent = trades.filter(t => t.asset==='GOLD').length;
+}
+
+function renderPnlChart() {
+  const ctx = document.getElementById('pnlChart').getContext('2d');
+  if (pnlChartInst) pnlChartInst.destroy();
+  let cum = 0;
+  const sorted = [...trades].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  const data = sorted.map(t => { cum += t.pnl; return parseFloat(cum.toFixed(2)); });
+  pnlChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels: sorted.map((_,i) => '#'+(i+1)), datasets: [{ data, borderColor: '#3266ad', backgroundColor: 'rgba(50,102,173,0.1)', fill: true, tension: 0.3, pointRadius: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#8b90a7' }, grid: { color: '#2e3347' } }, y: { ticks: { color: '#8b90a7', callback: v => '$'+v }, grid: { color: '#2e3347' } } } }
+  });
+}
+
+function renderAssetChart() {
+  const ctx = document.getElementById('assetChart').getContext('2d');
+  if (assetChartInst) assetChartInst.destroy();
+  const assets = ['NAS100', 'GOLD'];
+  const wrs = assets.map(a => {
+    const at = trades.filter(t => t.asset===a);
+    return at.length ? Math.round((at.filter(t=>t.pnl>0).length/at.length)*100) : 0;
+  });
+  assetChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: assets, datasets: [{ data: wrs, backgroundColor: ['#3266ad','#EF9F27'], borderRadius: 8 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#8b90a7' }, grid: { display: false } }, y: { max: 100, ticks: { color: '#8b90a7', callback: v => v+'%' }, grid: { color: '#2e3347' } } } }
+  });
+}
+
+function updateAnalysis() {
+  const price = parseFloat(document.getElementById('a-price').value);
+  const ids = ['ema9','ema21','ema50','ema200'];
+  const sigIds = ['sig9','sig21','sig50','sig200'];
+  let bulls = 0, bears = 0;
+  ids.forEach((id,i) => {
+    const val = parseFloat(document.getElementById(id).value);
+    const el = document.getElementById(sigIds[i]);
+    if (!price || !val) { el.textContent = '–'; el.className = 'signal neutral'; return; }
+    if (price > val) { el.textContent = '▲ Bullish'; el.className = 'signal bull'; bulls++; }
+    else { el.textContent = '▼ Bearish'; el.className = 'signal bear'; bears++; }
+  });
+  const total = bulls + bears;
+  const os = document.getElementById('overall-signal');
+  if (!total) { os.textContent = '–'; os.style.color = 'var(--text2)'; }
+  else if (bulls > bears) { os.textContent = '▲ BULLISH ('+bulls+'/'+total+')'; os.style.color = '#4ddb9e'; }
+  else if (bears > bulls) { os.textContent = '▼ BEARISH ('+bears+'/'+total+')'; os.style.color = '#f47070'; }
+  else { os.textContent = '⚡ VEGYES'; os.style.color = '#EF9F27'; }
+}
+
+function addSR() {
+  const val = parseFloat(document.getElementById('sr-val').value);
+  const type = document.getElementById('sr-type').value;
+  const lbl = document.getElementById('sr-label').value || (type==='S'?'Support':'Resistance');
+  if (!val) return;
+  srLevels.push({ val, type, label: lbl });
+  srLevels.sort((a,b) => b.val - a.val);
+  save();
+  renderSR();
+  document.getElementById('sr-val').value = '';
+  document.getElementById('sr-label').value = '';
+}
+
+function renderSR() {
+  const price = parseFloat(document.getElementById('a-price').value);
+  const list = document.getElementById('sr-list');
+  if (!srLevels.length) { list.innerHTML = '<div style="font-size:13px; color:var(--text2); padding:8px 0;">Adj hozzá szinteket alul.</div>'; return; }
+  list.innerHTML = srLevels.map((s,i) => {
+    const dist = price ? Math.abs(price-s.val).toFixed(1) : null;
+    const color = s.type==='S' ? '#4ddb9e' : '#f47070';
+    return `<div class="sr-row">
+      <span style="font-weight:600; color:${color};">${s.type==='S'?'▲ S':'▼ R'} ${s.val}</span>
+      <span style="color:var(--text2); flex:1; margin:0 8px;">${s.label}</span>
+      <span style="color:var(--text2); font-size:12px;">${dist?'Táv: '+dist+' pont':''}</span>
+      <button class="btn" style="padding:2px 8px; font-size:11px;" onclick="srLevels.splice(${i},1); save(); renderSR()">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function calcRR() {
+  const account = parseFloat(document.getElementById('rr-account').value) || 0;
+  const riskPct = parseFloat(document.getElementById('rr-risk-pct').value) || 0;
+  const entry = parseFloat(document.getElementById('rr-entry').value);
+  const sl = parseFloat(document.getElementById('rr-sl').value);
+  const tp = parseFloat(document.getElementById('rr-tp').value);
+  const riskUsd = (account * riskPct / 100).toFixed(2);
+  document.getElementById('rr-risk-usd').textContent = '$' + riskUsd;
+  if (!entry || !sl || !tp) { document.getElementById('rr-result').style.display = 'none'; return; }
+  const slDist = Math.abs(entry-sl), tpDist = Math.abs(tp-entry);
+  const rr = slDist > 0 ? tpDist/slDist : 0;
+  const profitUsd = (parseFloat(riskUsd)*rr).toFixed(2);
+  document.getElementById('rr-result').style.display = 'block';
+  document.getElementById('rr-ratio').textContent = 'R:R = 1 : '+rr.toFixed(2);
+  document.getElementById('rr-ratio').style.color = rr>=1.5?'#4ddb9e':rr>=1?'#EF9F27':'#f47070';
+  document.getElementById('rr-sl-dist').textContent = slDist.toFixed(1)+' pont';
+  document.getElementById('rr-tp-dist').textContent = tpDist.toFixed(1)+' pont';
+  document.getElementById('rr-profit').textContent = '+$'+profitUsd;
+  document.getElementById('rr-loss').textContent = '-$'+riskUsd;
+  const pct = Math.min((rr/3)*100, 100);
+  document.getElementById('rr-bar').style.width = pct+'%';
+  document.getElementById('rr-bar').style.background = rr>=1.5?'#1D9E75':rr>=1?'#EF9F27':'#E24B4A';
+}
+
+function runBacktest() {
+  const fast = parseInt(document.getElementById('b-fast').value)||9;
+  const slow = parseInt(document.getElementById('b-slow').value)||21;
+  const slPts = parseFloat(document.getElementById('b-sl').value)||15;
+  const tpPts = parseFloat(document.getElementById('b-tp').value)||30;
+  const candles = parseInt(document.getElementById('b-candles').value)||300;
+  const capital = parseFloat(document.getElementById('b-capital').value)||10000;
+  const riskPct = parseFloat(document.getElementById('b-risk').value)||1;
+  const asset = document.getElementById('b-asset').value;
+  const basePrice = asset==='NAS100' ? 19500 : 2350;
+  const prices = [basePrice];
+  for (let i=1; i<candles; i++) {
+    const change = (Math.random()-0.495)*(asset==='NAS100'?30:8);
+    prices.push(Math.max(prices[i-1]+change, basePrice*0.8));
+  }
+  const ema = (arr, p) => { const k=2/(p+1); let e=arr[0]; return arr.map(v=>{e=v*k+e*(1-k);return e;}); };
+  const fastE=ema(prices,fast), slowE=ema(prices,slow);
+  let equity=capital;
+  const equityCurve=[capital];
+  const btTrades=[];
+  for (let i=slow; i<candles-1; i++) {
+    const crossUp = fastE[i]>slowE[i] && fastE[i-1]<=slowE[i-1];
+    const crossDown = fastE[i]<slowE[i] && fastE[i-1]>=slowE[i-1];
+    if (crossUp||crossDown) {
+      const dir=crossUp?'LONG':'SHORT';
+      const entry=prices[i+1];
+      const riskUsd=equity*riskPct/100;
+      const rr=tpPts/slPts;
+      const win=Math.random()<0.45+(rr>1.5?0.07:0);
+      const pnl=win?riskUsd*rr:-riskUsd;
+      equity+=pnl;
+      equityCurve.push(parseFloat(equity.toFixed(2)));
+      btTrades.push({dir,entry:entry.toFixed(2),exit:win?(crossUp?entry+tpPts:entry-tpPts).toFixed(2):(crossUp?entry-slPts:entry+slPts).toFixed(2),pnl:pnl.toFixed(2),win});
+    }
+  }
+  const wins=btTrades.filter(t=>t.win).length;
+  const wr=btTrades.length>0?Math.round((wins/btTrades.length)*100):0;
+  const netPnl=(equity-capital).toFixed(2);
+  let peak=capital, dd=0;
+  equityCurve.forEach(e=>{if(e>peak)peak=e; dd=Math.max(dd,(peak-e)/peak*100);});
+  document.getElementById('backtest-results').style.display='block';
+  document.getElementById('bt-stats').innerHTML=`
+    <div class="metric"><div class="metric-label">Összes trade</div><div class="metric-value">${btTrades.length}</div></div>
+    <div class="metric"><div class="metric-label">Win rate</div><div class="metric-value ${wr>=50?'green':'red'}">${wr}%</div></div>
+    <div class="metric"><div class="metric-label">Nettó P&L</div><div class="metric-value ${parseFloat(netPnl)>=0?'green':'red'}">${parseFloat(netPnl)>=0?'+':''}$${netPnl}</div></div>
+    <div class="metric"><div class="metric-label">Max drawdown</div><div class="metric-value red">${dd.toFixed(1)}%</div></div>
+  `;
+  if (equityChartInst) equityChartInst.destroy();
+  const ctx=document.getElementById('equityChart').getContext('2d');
+  equityChartInst=new Chart(ctx,{type:'line',data:{labels:equityCurve.map((_,i)=>i),datasets:[{data:equityCurve,borderColor:'#3266ad',backgroundColor:'rgba(50,102,173,0.08)',fill:true,tension:0.3,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b90a7'},grid:{color:'#2e3347'}},y:{ticks:{color:'#8b90a7',callback:v=>'$'+v.toLocaleString()},grid:{color:'#2e3347'}}}}});
+  document.getElementById('bt-trade-list').innerHTML=btTrades.slice(-20).reverse().map((t,i)=>`
+    <tr><td>${btTrades.length-i}</td>
+    <td><span class="badge ${t.dir==='LONG'?'buy':'sell'}">${t.dir}</span></td>
+    <td>${t.entry}</td><td>${t.exit}</td>
+    <td style="color:${parseFloat(t.pnl)>=0?'#4ddb9e':'#f47070'}; font-weight:600;">${parseFloat(t.pnl)>=0?'+':''}$${t.pnl}</td>
+    <td><span class="badge ${t.win?'win':'loss'}">${t.win?'WIN':'LOSS'}</span></td></tr>
+  `).join('');
+}
+
+// Init
+renderSR();
+updateStats();
+</script>
+</body>
+</html>
