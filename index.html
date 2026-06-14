@@ -6,6 +6,7 @@
 <title>NAS100 & GOLD Trading Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg: #0f1117; --bg2: #1a1d27; --bg3: #22263a;
@@ -114,9 +115,9 @@
       <div class="upload-zone" id="drop-zone" onclick="document.getElementById('csv-input').click()" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
         <div class="upload-icon">📂</div>
         <div class="upload-title">Kattints vagy húzd ide a CSV fájlt</div>
-        <div class="upload-sub">cTrader Statement export (.csv)</div>
+        <div class="upload-sub">cTrader Statement export (.xlsx vagy .csv)</div>
       </div>
-      <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
+      <input type="file" id="csv-input" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleFile(this.files[0])">
       <div style="margin-top:1rem;">
         <div class="card-title" style="margin-bottom:8px;">Vagy tesztelj minta adatokkal</div>
         <button class="btn" onclick="loadSampleData()">▶ Minta adatok betöltése</button>
@@ -316,10 +317,23 @@ function dropFile(e) { e.preventDefault(); dragLeave(); handleFile(e.dataTransfe
 
 function handleFile(file) {
   if (!file) return;
-  if (!file.name.endsWith('.csv')) { showAlert('Csak .csv fájlt fogad el!', 'error'); return; }
-  const reader = new FileReader();
-  reader.onload = e => parseCSV(e.target.result);
-  reader.readAsText(file);
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.csv')) {
+    const reader = new FileReader();
+    reader.onload = e => parseCSV(e.target.result);
+    reader.readAsText(file);
+  } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const csv = XLSX.utils.sheet_to_csv(ws);
+      parseCSV(csv);
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    showAlert('Csak .xlsx vagy .csv fájlt fogad el!', 'error');
+  }
 }
 
 function parseCSV(text) {
