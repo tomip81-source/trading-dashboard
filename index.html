@@ -342,8 +342,13 @@ function parseCSV(text) {
   if (!rows || rows.length === 0) { showAlert('Nem sikerült beolvasni a CSV-t.', 'error'); return; }
 
   const findCol = (keys) => {
+    const headers = Object.keys(rows[0]);
     for (const k of keys) {
-      const found = Object.keys(rows[0]).find(h => h.trim().toLowerCase().includes(k));
+      const found = headers.find(h => h.trim().toLowerCase() === k);
+      if (found) return found;
+    }
+    for (const k of keys) {
+      const found = headers.find(h => h.trim().toLowerCase().includes(k));
       if (found) return found;
     }
     return null;
@@ -354,7 +359,7 @@ function parseCSV(text) {
   const dateCol = findCol(['closing time','opening time','date','time']);
   const entryCol = findCol(['entry price','open price','opening price']);
   const closeCol = findCol(['closing price','close price','exit price']);
-  const pnlCol = findCol(['net profit','profit','pnl','p&l','gross']);
+  const pnlCol = findCol(['net $','net p/l','net p&l','net profit','net pl','profit / loss','profit/loss','profit','pnl','p&l','p/l','gross','result']);
 
   if (!symCol && !pnlCol) {
     showAlert('Nem ismerhető fel a cTrader formátum. Ellenőrizd az oszlopokat.', 'error');
